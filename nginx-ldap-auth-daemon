@@ -107,6 +107,9 @@ def check_auth(user, passwd, allowusr, allowgr):
 
 
 class LDAPAuthHandler(BaseHTTPRequestHandler):
+    def log_message(self, format, *args):
+        return True
+
     def do_GET(self):
         try:
             auth_header = self.headers.getheader('Authorization')
