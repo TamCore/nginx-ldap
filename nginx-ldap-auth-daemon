@@ -7,6 +7,7 @@ import signal
 import base64
 import ldap
 import argparse
+import syslog
 from BaseHTTPServer import HTTPServer, BaseHTTPRequestHandler
 
 # -----------------------------------------------------------------------------
@@ -86,6 +87,7 @@ def check_auth(user, passwd, allowusr, allowgr):
                 try:
                     ldap_connection.simple_bind_s(data['distinguishedName'][0], passwd)
                 except ldap.INVALID_CREDENTIALS:
+                    syslog.syslog('invalid credentials for %s' % user)
                     return False
                 # check allowed users
                 if allowusr and user.lower() in [x.lower().strip() for x in allowusr.split(',')]:
@@ -100,7 +102,11 @@ def check_auth(user, passwd, allowusr, allowgr):
                             if group.lower().startswith('cn={},'.format(g)):
                                 return True
                 # user found but not in allowed
-                return False if allowusr or allowgr else True
+                if allowusr or allowgr:
+                    syslog.syslog('user %s not listed in allowed users (%s) or allowed groups (%s)' % user, allowusr, allowgr)
+                    return False
+                else:
+                    return True
         except (ldap.CONNECT_ERROR, ldap.SERVER_DOWN):
             pass  # try next server
         finally:
@@ -143,6 +149,7 @@ if __name__ == '__main__':
 
     read_conf(args.config)
     drop_privileges()
+    syslog.syslog('daemon started')
     signal.signal(signal.SIGINT, exit_handler)
 
     server = AuthHTTPServer((args.host, args.port), LDAPAuthHandler)
