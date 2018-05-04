@@ -10,6 +10,11 @@ import argparse
 import syslog
 from BaseHTTPServer import HTTPServer, BaseHTTPRequestHandler
 
+try:
+    from passlib.apache import HtpasswdFile
+except:
+    True
+
 # -----------------------------------------------------------------------------
 # Requests are processed in separate thread
 import threading
@@ -66,7 +71,12 @@ def exit_handler(signal, frame):
     sys.exit(0)
 
 
-def check_auth(user, passwd, allowusr, allowgr):
+def check_auth(user, passwd, allowusr, allowgr, htpasswd):
+    if htpasswd:
+        ht = HtpasswdFile(htpasswd)
+        if ht.check_password(user, passwd):
+            return True
+
     """check password and group membership"""
     proto = 'ldap://' if conf['ssl'] != 'on' else 'ldaps://'
     for host in conf['host'].split():
@@ -124,7 +134,7 @@ class LDAPAuthHandler(BaseHTTPRequestHandler):
             auth_header = self.headers.getheader('Authorization')
             if auth_header and auth_header.lower().startswith('basic '):
                 user, passwd = base64.b64decode(auth_header[6:]).split(':', 1)
-                if check_auth(user, passwd, self.headers.getheader('X-Ldap-Allowed-Usr'), self.headers.getheader('X-Ldap-Allowed-Grp')):
+                if check_auth(user, passwd, self.headers.getheader('X-Ldap-Allowed-Usr'), self.headers.getheader('X-Ldap-Allowed-Grp'),  self.headers.getheader('X-Htpasswd')):
                     self.send_response(200)
                     return
             self.send_response(401)
